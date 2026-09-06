@@ -266,7 +266,14 @@ public static class MockUtil
     // ==================== Fonts ====================
     private static Font _font, _display;
 
+    /// <summary>
+    /// Assets/Resources に同梱したフォント。WebGL には OS フォントが存在しないため、
+    /// 実際に描画できるフォントはビルドに埋め込んだこれだけになる。
+    /// </summary>
+    public const string EmbeddedFontResource = "Fonts/ShipporiMincho";
+
     // 本文用:和文が出せる明朝系を優先(シックさ重視)
+    // ※ 同梱フォントが見つからなかったときの保険。WebGL では使われない。
     private static string[] _bodyNames =
     {
         "Yu Mincho", "YuMincho", "游明朝", "MS Mincho", "ＭＳ 明朝", "MS PMincho",
@@ -281,6 +288,7 @@ public static class MockUtil
     };
 
     private static string _bodyResource, _displayResource;
+    private static bool _warnedNoFont;
 
     public static void ConfigureFonts(string[] display, string[] body,
                                       string displayResource = null, string bodyResource = null)
@@ -291,15 +299,19 @@ public static class MockUtil
         if (bodyResource != _bodyResource) { _bodyResource = bodyResource; _font = null; }
     }
 
-    /// <summary>WebGL では OS フォントが使えないので、Resources 内のフォント → 組み込み の順に落ちる。</summary>
+    /// <summary>
+    /// 同梱フォント → OS フォント → 組み込みフォントの順に落ちる。
+    /// WebGL では OS フォントも組み込みフォント(LegacyRuntime.ttf)も
+    /// 実体が OS 依存で何も描画されないため、同梱フォントに載ることが必須。
+    /// </summary>
     private static Font BuildFont(string[] names, string resourceName)
     {
-        // 1. Assets/Resources に置いたフォント(WebGL で和文を出したいときはこれ)
-        if (!string.IsNullOrEmpty(resourceName))
-        {
-            var r = Resources.Load<Font>(resourceName);
-            if (r != null) return r;
-        }
+        // 1. Assets/Resources のフォント。未指定なら同梱フォントを使う。
+        //    シーンに空文字が保存されていてもここで拾えるようにしておく。
+        var path = string.IsNullOrEmpty(resourceName) ? EmbeddedFontResource : resourceName;
+        var r = Resources.Load<Font>(path);
+        if (r == null && path != EmbeddedFontResource) r = Resources.Load<Font>(EmbeddedFontResource);
+        if (r != null) return r;
 
         // 2. OS フォント(WebGL では利用不可)
         if (Application.platform != RuntimePlatform.WebGLPlayer)
@@ -312,7 +324,14 @@ public static class MockUtil
             catch { /* 未対応環境では組み込みへ */ }
         }
 
-        // 3. 組み込み(欧文のみ)
+        // 3. 組み込み(欧文のみ / WebGL では描画されない)
+        if (!_warnedNoFont)
+        {
+            _warnedNoFont = true;
+            Debug.LogError($"[MockUtil] 同梱フォント '{EmbeddedFontResource}' を読み込めませんでした。"
+                           + " Assets/Resources/Fonts/ShipporiMincho.ttf が存在するか確認してください。"
+                           + " WebGL ではこの状態だと文字が一切描画されません。");
+        }
         return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
                ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
     }
@@ -320,7 +339,7 @@ public static class MockUtil
     /// <summary>本文用フォント(和文可)。</summary>
     public static Font UIFont => _font != null ? _font : (_font = BuildFont(_bodyNames, _bodyResource));
 
-    /// <summary>見出し用フォント。欧文のみに使うこと。</summary>
+    /// <summary>見出し用フォント。</summary>
     public static Font DisplayFont => _display != null ? _display : (_display = BuildFont(_displayNames, _displayResource));
 
     // ==================== uGUI ====================
@@ -351,7 +370,7 @@ public static class MockUtil
         return rt;
     }
 
-    /// <summary>display=true で見出し用フォント(欧文のみの文字列に使うこと)。</summary>
+    /// <summary>display=true で見出し用フォント。</summary>
     public static Text CreateText(Transform parent, string content, int fontSize, TextAnchor anchor,
         Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax, Color? color = null,
         bool display = false)

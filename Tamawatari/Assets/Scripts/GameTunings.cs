@@ -169,28 +169,31 @@ public class AudioTuning
     public bool sfxEnabled = true;
 }
 
-/// <summary>使用フォント。上から順に、OS にあるものが使われる。</summary>
+/// <summary>
+/// 使用フォント。既定では Assets/Resources に同梱したフォントを使う。
+/// WebGL には OS フォントが無いため、同梱フォント以外は描画できない。
+/// </summary>
 [System.Serializable]
 public class FontTuning
 {
-    [Tooltip("本文用。和文が出せる書体を先頭に置くこと")]
+    [Tooltip("同梱フォントが読めなかったときの保険。OS フォント名を上から順に試す (WebGL では使われない)")]
     public string[] body =
     {
         "Yu Mincho", "YuMincho", "游明朝", "MS Mincho", "ＭＳ 明朝", "MS PMincho",
         "Hiragino Mincho ProN", "Meiryo", "Yu Gothic", "MS Gothic", "Georgia"
     };
 
-    [Tooltip("見出し用。欧文のみに使われる")]
+    [Tooltip("見出し用の OS フォント名。同上、保険としてのみ使われる")]
     public string[] display =
     {
         "Chiller", "Gabriola", "Papyrus", "Palatino Linotype", "Book Antiqua",
         "Constantia", "Georgia", "Times New Roman"
     };
 
-    [Header("WebGL 用 (OS フォントが使えないため)")]
-    [Tooltip("Assets/Resources に置いたフォント名。指定するとこれを最優先で使う。和文を出すなら必須")]
+    [Header("同梱フォント (全プラットフォーム共通)")]
+    [Tooltip("Assets/Resources に置いたフォント名。空なら Fonts/ShipporiMincho を使う")]
     public string bodyResource = "";
-    [Tooltip("Assets/Resources に置いた見出し用フォント名")]
+    [Tooltip("Assets/Resources に置いた見出し用フォント名。空なら Fonts/ShipporiMincho を使う")]
     public string displayResource = "";
 }
 
