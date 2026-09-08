@@ -25,11 +25,11 @@ public class RankingView : MonoBehaviour
 
         var card = MockUtil.CreateImage(root, new Color(0.10f, 0.08f, 0.14f, 0.985f),
             new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(-420, -300), new Vector2(420, 300), "Card");
+            new Vector2(-520, -300), new Vector2(520, 300), "Card");
         var c = card.transform;
 
-        MockUtil.CreateBox(c, MockUtil.WithAlpha(Ember, 0.9f), new Vector2(0, 290), new Vector2(840, 5), "top");
-        MockUtil.CreateBox(c, MockUtil.WithAlpha(Ember, 0.35f), new Vector2(0, -290), new Vector2(840, 3), "bottom");
+        MockUtil.CreateBox(c, MockUtil.WithAlpha(Ember, 0.9f), new Vector2(0, 290), new Vector2(1040, 5), "top");
+        MockUtil.CreateBox(c, MockUtil.WithAlpha(Ember, 0.35f), new Vector2(0, -290), new Vector2(1040, 3), "bottom");
 
         MockUtil.CreateText(c, "R A N K I N G", 46, TextAnchor.UpperCenter,
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -86), new Vector2(0, -22), Ember, display: true);
@@ -40,13 +40,13 @@ public class RankingView : MonoBehaviour
         for (int i = 0; i < Rows; i++)
         {
             float y = 152f - i * 52f;
-            v._rowBg[i] = MockUtil.CreateBox(c, new Color(1f, 1f, 1f, 0.035f), new Vector2(0, y), new Vector2(760, 44), $"row{i}");
-            v._left[i] = MockUtil.CreateText(c, "", 22, TextAnchor.MiddleLeft,
+            v._rowBg[i] = MockUtil.CreateBox(c, new Color(1f, 1f, 1f, 0.035f), new Vector2(0, y), new Vector2(960, 44), $"row{i}");
+            v._left[i] = MockUtil.CreateText(c, "", 20, TextAnchor.MiddleLeft,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-364, y - 22), new Vector2(220, y + 22), Cream);
+                new Vector2(-464, y - 22), new Vector2(250, y + 22), Cream);
             v._right[i] = MockUtil.CreateText(c, "", 28, TextAnchor.MiddleRight,
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(220, y - 22), new Vector2(364, y + 22), Ember);
+                new Vector2(250, y - 22), new Vector2(464, y + 22), Ember);
         }
 
         v._empty = MockUtil.CreateText(c, "まだ記録がありません", 24, TextAnchor.MiddleCenter,
@@ -76,7 +76,8 @@ public class RankingView : MonoBehaviour
 
             var e = list[i];
             bool hi = i == highlight;
-            _left[i].text = $"#{i + 1}   深度 {e.DepthMeters:F1}m   成仏 {e.Kills}   最大 x{e.MaxCombo}" +
+            string name = string.IsNullOrEmpty(e.Name) ? "ななし" : e.Name;
+            _left[i].text = $"#{i + 1}  {name}   深度 {e.DepthMeters:F1}m   成仏 {e.Kills}   最大 x{e.MaxCombo}" +
                             (e.Cleared ? "   CLEAR" : "") + $"   {e.Date}";
             _right[i].text = e.Score.ToString();
             _left[i].color = hi ? new Color(1f, 0.88f, 0.5f) : (e.Cleared ? new Color(1f, 0.92f, 0.78f) : Cream);

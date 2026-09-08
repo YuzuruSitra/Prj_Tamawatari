@@ -71,6 +71,7 @@ public class GameManager : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        InputHub.Suppressed = false;      // タイトルの名前入力から抜けきれていない場合の保険
         state = GameState.Playing;
         survivalTime = 0f;
         PlatformsPassed = 0;

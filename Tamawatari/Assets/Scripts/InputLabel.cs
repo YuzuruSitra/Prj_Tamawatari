@@ -9,7 +9,7 @@ public class InputLabel : MonoBehaviour
 {
     private Text _text;
     private string _format;
-    private bool _lastUsingPad;
+    private bool _lastUsingPad, _lastUsingTouch;
     private bool _init;
 
     public static InputLabel Bind(Text text, string format)
@@ -27,12 +27,14 @@ public class InputLabel : MonoBehaviour
         if (_text == null) return;
         _text.text = _format.Replace("{C}", InputHub.ConfirmLabel).Replace("{S}", InputHub.SpecialLabel);
         _lastUsingPad = InputHub.UsingGamepad;
+        _lastUsingTouch = InputHub.UsingTouch;
         _init = true;
     }
 
     private void Update()
     {
-        if (!_init || _lastUsingPad == InputHub.UsingGamepad) return;
+        if (!_init) return;
+        if (_lastUsingPad == InputHub.UsingGamepad && _lastUsingTouch == InputHub.UsingTouch) return;
         Apply();
     }
 }

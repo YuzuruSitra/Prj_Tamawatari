@@ -306,3 +306,25 @@ public class AtmosphereTuning
     public Color moteColor = new Color(1f, 0.72f, 0.35f, 0.5f);
     public float padding = 3f;                 // 画面外にどれだけはみ出して湧かせるか
 }
+
+/// <summary>
+/// スマホ(タッチ)対応の調整値。バーチャルパッドの見た目と大きさ。
+/// 判定そのものは InputHub / VirtualPad 側で行う。
+/// </summary>
+[System.Serializable]
+public class TouchTuning
+{
+    [Tooltip("ビルドでも常にバーチャルパッドを出す(タッチ対応 PC 向けの実運用スイッチ)。 エディタで試すだけなら Tamawatari > 開発用 > スマホ環境をまねる の方を使う")]
+    public bool forceVirtualPad = false;
+
+    [Header("SHIFT ボタン (右下)")]
+    public float buttonDiameter = 250f;        // 1920x1080 換算の直径
+    public Vector2 buttonMargin = new Vector2(74f, 74f);   // 画面右下からの余白
+    [Range(0.2f, 1f)]
+    public float opacity = 0.9f;
+    public Color buttonColor = new Color(0.72f, 0.55f, 0.95f);
+
+    [Header("タップ領域のヒント")]
+    public bool showTapHint = true;
+    public string tapHint = "どこでもタップでジャンプ";
+}

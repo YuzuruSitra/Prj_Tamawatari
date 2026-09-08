@@ -12,14 +12,17 @@ public class TitleController : MonoBehaviour
     [SerializeField] private FontTuning fonts = new FontTuning();
     [SerializeField] private AudioTuning audioTuning = new AudioTuning();
     [SerializeField] private AtmosphereTuning atmosphere = new AtmosphereTuning();
+    [SerializeField] private TouchTuning touch = new TouchTuning();
 
     private RankingView _ranking;
+    private NameField _nameField;
 
     private void Awake()
     {
         if (fonts == null) fonts = new FontTuning();
         MockUtil.ConfigureFonts(fonts.display, fonts.body, fonts.displayResource, fonts.bodyResource);
         if (audioTuning == null) audioTuning = new AudioTuning();
+        if (touch == null || touch.buttonDiameter <= 0f) touch = new TouchTuning();
         AudioManager.Tuning = audioTuning;
 
         var cam = Camera.main;
@@ -69,8 +72,11 @@ public class TitleController : MonoBehaviour
             new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, 24), new Vector2(0, 64),
             new Color(0.82f, 0.76f, 0.72f));
         InputLabel.Bind(MockUtil.CreateText(root, "", 27, TextAnchor.MiddleCenter,
-            new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, -84), new Vector2(0, -34),
+            new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, -166), new Vector2(0, -116),
             new Color(0.94f, 0.90f, 0.83f)), "{C} : はじめる      {S} : ランキング");
+
+        // なまえ(ランキングに残る)
+        _nameField = NameField.Create(root, -46f);
 
         InputLabel.Bind(MockUtil.CreateText(root, "", 19, TextAnchor.LowerCenter,
             new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 30), new Vector2(0, 92),
@@ -79,10 +85,20 @@ public class TitleController : MonoBehaviour
             "足場のど真ん中に降りると PERFECT。敵を連続で倒すと KILL 連鎖が加熱してスコアが跳ね上がる");
 
         _ranking = RankingView.Create(root, "{S} : 閉じる      {C} : はじめる");
+
+        // スマホ用バーチャルパッド(タッチ環境でなければ隠れたまま)
+        VirtualPad.Create(touch);
     }
 
     private void Update()
     {
+        // ランキングを開いている間は名前入力を触れないようにしておく
+        if (_nameField != null)
+        {
+            bool show = !_ranking.IsOpen;
+            if (_nameField.gameObject.activeSelf != show) _nameField.gameObject.SetActive(show);
+        }
+
         if (InputHub.SpecialPressed) { AudioManager.PlayUi(); _ranking.Toggle(); }
         if (InputHub.ConfirmPressed)
         {

@@ -4,6 +4,7 @@ using UnityEngine;
 /// <summary>これまでの成績1件。</summary>
 public struct ScoreEntry
 {
+    public string Name;
     public int Score;
     public int DepthX10;      // 深度(m) × 10 で保持
     public int Kills;
@@ -39,6 +40,7 @@ public static class ScoreBoard
             int.TryParse(f[3], out int cb);
             list.Add(new ScoreEntry
             {
+                Name = f.Length >= 7 ? f[6] : "",
                 Score = sc,
                 DepthX10 = dp,
                 Kills = kl,
@@ -78,6 +80,35 @@ public static class ScoreBoard
         return rank;
     }
 
+    // ==================== プレイヤー名 ====================
+    public const int NameMaxLength = 10;
+    private const string NameKey = "tamawatari_player_name";
+
+    /// <summary>タイトルで入れた名前。PlayerPrefs に残るので次回も引き継がれる。</summary>
+    public static string PlayerName
+    {
+        get => Sanitize(PlayerPrefs.GetString(NameKey, ""));
+        set
+        {
+            PlayerPrefs.SetString(NameKey, Sanitize(value));
+            PlayerPrefs.Save();
+        }
+    }
+
+    /// <summary>保存形式の区切り文字を落として長さを詰める。</summary>
+    public static string Sanitize(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return "";
+        var sb = new System.Text.StringBuilder(raw.Length);
+        foreach (char c in raw)
+        {
+            if (c == '|' || c == ';' || c < ' ') continue;
+            sb.Append(c);
+            if (sb.Length >= NameMaxLength) break;
+        }
+        return sb.ToString().Trim();
+    }
+
     public static void Clear()
     {
         PlayerPrefs.DeleteKey(Key);
@@ -92,7 +123,8 @@ public static class ScoreBoard
             var e = list[i];
             if (i > 0) sb.Append(';');
             sb.Append(e.Score).Append('|').Append(e.DepthX10).Append('|').Append(e.Kills).Append('|')
-              .Append(e.MaxCombo).Append('|').Append(e.Cleared ? '1' : '0').Append('|').Append(e.Date);
+              .Append(e.MaxCombo).Append('|').Append(e.Cleared ? '1' : '0').Append('|').Append(e.Date)
+              .Append('|').Append(Sanitize(e.Name));
         }
         PlayerPrefs.SetString(Key, sb.ToString());
         PlayerPrefs.Save();

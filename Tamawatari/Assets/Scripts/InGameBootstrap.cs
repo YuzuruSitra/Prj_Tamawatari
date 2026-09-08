@@ -21,6 +21,7 @@ public class InGameBootstrap : MonoBehaviour
     [SerializeField] private FontTuning fontTuning = new FontTuning();
     [SerializeField] private AudioTuning audioTuning = new AudioTuning();
     [SerializeField] private SectionTuning sectionTuning = new SectionTuning();
+    [SerializeField] private TouchTuning touchTuning = new TouchTuning();
 
     [Header("Toggles")]
     [Tooltip("まずジャンプ+足場だけを確認したいときは OFF")]
@@ -41,6 +42,7 @@ public class InGameBootstrap : MonoBehaviour
         if (fontTuning == null) fontTuning = new FontTuning();
         if (audioTuning == null) audioTuning = new AudioTuning();
         if (sectionTuning == null) sectionTuning = new SectionTuning();
+        if (touchTuning == null || touchTuning.buttonDiameter <= 0f) touchTuning = new TouchTuning();
         AudioManager.Tuning = audioTuning;
         AudioManager.StartBgm();
         MockUtil.ConfigureFonts(fontTuning.display, fontTuning.body,
@@ -124,6 +126,9 @@ public class InGameBootstrap : MonoBehaviour
             atmos = new GameObject("AtmosphereFx").AddComponent<AtmosphereFx>();
             atmos.Init(cam, atmosphereTuning);
         }
+
+        // --- スマホ用バーチャルパッド(タッチ環境でなければ隠れたまま) ---
+        VirtualPad.Create(touchTuning);
 
         // --- UIManager ---
         var ui = new GameObject("UIManager").AddComponent<UIManager>();

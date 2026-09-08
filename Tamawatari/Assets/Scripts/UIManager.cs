@@ -741,6 +741,7 @@ public class UIManager : MonoBehaviour
                     _submitted = true;
                     _submittedRank = ScoreBoard.Submit(new ScoreEntry
                     {
+                        Name = ScoreBoard.PlayerName,
                         Score = gm.TotalScore,
                         DepthX10 = Mathf.RoundToInt(gm.DepthMeters * 10f),
                         Kills = gm.GhostsDefeated,

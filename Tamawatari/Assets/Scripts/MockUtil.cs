@@ -313,8 +313,8 @@ public static class MockUtil
         if (r == null && path != EmbeddedFontResource) r = Resources.Load<Font>(EmbeddedFontResource);
         if (r != null) return r;
 
-        // 2. OS フォント(WebGL では利用不可)
-        if (Application.platform != RuntimePlatform.WebGLPlayer)
+        // 2. OS フォント(WebGL では利用不可。MobileSim 中も同じ条件に揃えるため使わない)
+        if (Application.platform != RuntimePlatform.WebGLPlayer && !MobileSim.Enabled)
         {
             try
             {
@@ -417,5 +417,19 @@ public static class MockUtil
         if (sprite != null) img.sprite = sprite;
         else if (circle) img.sprite = CircleSprite;
         return img;
+    }
+
+    /// <summary>
+    /// ScreenSpaceOverlay の Canvas 上の RectTransform を画面座標の矩形に変換する。
+    /// タッチやクリックの当たり判定を EventSystem 無しで行うために使う。
+    /// </summary>
+    public static Rect ScreenRect(RectTransform rt)
+    {
+        if (rt == null) return Rect.zero;
+        var c = new Vector3[4];
+        rt.GetWorldCorners(c);
+        Vector2 min = RectTransformUtility.WorldToScreenPoint(null, c[0]);
+        Vector2 max = RectTransformUtility.WorldToScreenPoint(null, c[2]);
+        return new Rect(min, max - min);
     }
 }
