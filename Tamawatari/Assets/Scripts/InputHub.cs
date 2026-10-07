@@ -6,13 +6,15 @@ using UnityEngine.InputSystem;
 /// 入力の一元窓口。キーボード / ゲームパッド / タッチ(スマホ)の三対応。
 ///   Confirm(決定/狙う・溜める) : Space  /  ゲームパッド ×(South, Xbox の A)  /  画面タップ
 ///   Special(衝撃・統合・ランキング) : Shift / ゲームパッド □(West, Xbox の X) / バーチャルボタン
+///   Capture(スコア画面の画像ほぞん) : P / ゲームパッド △(North, Xbox の Y) / 画面のボタン
 ///
 /// スマホでは「SHIFT だけがボタン、それ以外のどこを触っても Space と同じ」。
 /// ボタンの矩形は SpecialTouchArea を VirtualPad が差し込み、触っても Confirm に
 /// したくない領域(名前入力欄など)は AddTouchBlocker で登録する。
+/// スコア画面の「画像ほぞん」も同じ仕組みで、CaptureTouchArea を UIManager が差し込む。
 ///
-/// 最後に触ったデバイスを覚えていて、UI のボタン表記(ConfirmLabel / SpecialLabel)を
-/// キーボード表記 / パッド表記 / タッチ表記で自動的に切り替える。
+/// 最後に触ったデバイスを覚えていて、UI のボタン表記(ConfirmLabel / SpecialLabel /
+/// CaptureLabel)をキーボード表記 / パッド表記 / タッチ表記で自動的に切り替える。
 /// </summary>
 public static class InputHub
 {
@@ -24,6 +26,8 @@ public static class InputHub
 
     public static string ConfirmLabel => UsingTouch ? "タップ" : UsingGamepad ? "×" : "SPACE";
     public static string SpecialLabel => UsingGamepad ? "□" : "SHIFT";
+    /// <summary>"タップ" だけだと「どこでもタップ」の Confirm と見分けが付かないので場所まで言う。</summary>
+    public static string CaptureLabel => UsingTouch ? "ここをタップ" : UsingGamepad ? "△" : "P";
 
     /// <summary>名前入力中など、ゲーム側の入力を丸ごと止めたいときに立てる。</summary>
     public static bool Suppressed { get; set; }
@@ -66,6 +70,9 @@ public static class InputHub
     /// <summary>SHIFT のバーチャルボタンの画面矩形。VirtualPad が生きている間だけ入る。</summary>
     public static System.Func<Rect> SpecialTouchArea { get; set; }
 
+    /// <summary>スコア画面の「画像ほぞん」ボタンの画面矩形。UIManager が差し込む。</summary>
+    public static System.Func<Rect> CaptureTouchArea { get; set; }
+
     // 触っても Confirm にしない領域(名前入力欄など)
     private static readonly List<System.Func<Rect>> _blockers = new List<System.Func<Rect>>();
 
@@ -79,12 +86,13 @@ public static class InputHub
         if (area != null) _blockers.Remove(area);
     }
 
-    private enum TouchKind : byte { None = 0, Confirm, Special, Ignored }
+    private enum TouchKind : byte { None = 0, Confirm, Special, Capture, Ignored }
 
     private const int MaxTouches = 10;
     private static readonly TouchKind[] _slotKind = new TouchKind[MaxTouches];
     private static TouchKind _mouseKind;
     private static bool _tConfirmDown, _tConfirmHeld, _tConfirmUp, _tSpecialDown, _tSpecialHeld;
+    private static bool _tCaptureDown, _tCaptureHeld;
     private static int _touchFrame = -1;
 
     /// <summary>触った位置がどの入力になるかを決める。</summary>
@@ -92,6 +100,8 @@ public static class InputHub
     {
         var special = SpecialTouchArea;
         if (special != null && special().Contains(screenPos)) return TouchKind.Special;
+        var capture = CaptureTouchArea;
+        if (capture != null && capture().Contains(screenPos)) return TouchKind.Capture;
         for (int i = 0; i < _blockers.Count; i++)
         {
             var b = _blockers[i];
@@ -110,6 +120,7 @@ public static class InputHub
         _touchFrame = Time.frameCount;
         _tConfirmDown = _tConfirmHeld = _tConfirmUp = false;
         _tSpecialDown = _tSpecialHeld = false;
+        _tCaptureDown = _tCaptureHeld = false;
         if (!TouchUiActive) return;
 
         var ts = Touchscreen.current;
@@ -136,6 +147,11 @@ public static class InputHub
                     if (down) _tSpecialDown = true;
                     if (t.press.isPressed) _tSpecialHeld = true;
                 }
+                else if (kind == TouchKind.Capture)
+                {
+                    if (down) _tCaptureDown = true;
+                    if (t.press.isPressed) _tCaptureHeld = true;
+                }
                 if (up) _slotKind[i] = TouchKind.None;
             }
         }
@@ -159,6 +175,11 @@ public static class InputHub
                 {
                     if (down) _tSpecialDown = true;
                     if (m.leftButton.isPressed) _tSpecialHeld = true;
+                }
+                else if (_mouseKind == TouchKind.Capture)
+                {
+                    if (down) _tCaptureDown = true;
+                    if (m.leftButton.isPressed) _tCaptureHeld = true;
                 }
                 if (up) _mouseKind = TouchKind.None;
             }
@@ -228,6 +249,32 @@ public static class InputHub
             return (k != null && (k.leftShiftKey.isPressed || k.rightShiftKey.isPressed))
                 || (g != null && g.buttonWest.isPressed)
                 || _tSpecialHeld;
+        }
+    }
+
+    public static bool CapturePressed
+    {
+        get
+        {
+            if (Suppressed) return false;
+            EnsureTouch();
+            var k = Key; var g = Pad;
+            return (k != null && k.pKey.wasPressedThisFrame)
+                || (g != null && g.buttonNorth.wasPressedThisFrame)
+                || _tCaptureDown;
+        }
+    }
+
+    public static bool CaptureHeld
+    {
+        get
+        {
+            if (Suppressed) return false;
+            EnsureTouch();
+            var k = Key; var g = Pad;
+            return (k != null && k.pKey.isPressed)
+                || (g != null && g.buttonNorth.isPressed)
+                || _tCaptureHeld;
         }
     }
 

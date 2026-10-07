@@ -158,7 +158,7 @@ public class SectionTuning
     public float maxSpeedScale = 2.0f;                     // 速度の上限
 }
 
-/// <summary>音まわり。音源はすべて手続き生成。</summary>
+/// <summary>音まわり。音源は Assets/Audio の AudioClip アセット。</summary>
 [System.Serializable]
 public class AudioTuning
 {
@@ -167,34 +167,6 @@ public class AudioTuning
     [Range(0f, 1f)] public float sfxVolume = 0.7f;
     public bool bgmEnabled = true;
     public bool sfxEnabled = true;
-}
-
-/// <summary>
-/// 使用フォント。既定では Assets/Resources に同梱したフォントを使う。
-/// WebGL には OS フォントが無いため、同梱フォント以外は描画できない。
-/// </summary>
-[System.Serializable]
-public class FontTuning
-{
-    [Tooltip("同梱フォントが読めなかったときの保険。OS フォント名を上から順に試す (WebGL では使われない)")]
-    public string[] body =
-    {
-        "Yu Mincho", "YuMincho", "游明朝", "MS Mincho", "ＭＳ 明朝", "MS PMincho",
-        "Hiragino Mincho ProN", "Meiryo", "Yu Gothic", "MS Gothic", "Georgia"
-    };
-
-    [Tooltip("見出し用の OS フォント名。同上、保険としてのみ使われる")]
-    public string[] display =
-    {
-        "Chiller", "Gabriola", "Papyrus", "Palatino Linotype", "Book Antiqua",
-        "Constantia", "Georgia", "Times New Roman"
-    };
-
-    [Header("同梱フォント (全プラットフォーム共通)")]
-    [Tooltip("Assets/Resources に置いたフォント名。空なら Fonts/ShipporiMincho を使う")]
-    public string bodyResource = "";
-    [Tooltip("Assets/Resources に置いた見出し用フォント名。空なら Fonts/ShipporiMincho を使う")]
-    public string displayResource = "";
 }
 
 [System.Serializable]

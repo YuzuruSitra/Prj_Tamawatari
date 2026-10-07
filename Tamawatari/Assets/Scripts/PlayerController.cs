@@ -20,6 +20,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private PlayerTuning tuning = new PlayerTuning();
 
     [Header("Refs")]
+    [Tooltip("見た目のルート。Player プレハブの Visual 子オブジェクト")]
+    [SerializeField] private Transform visual;
     [SerializeField] private JumpIndicator indicator;
     [SerializeField] private PlatformSpawner platformSpawner;
 
@@ -61,7 +63,7 @@ public class PlayerController : MonoBehaviour
         Mathf.Clamp01((Time.time - _lastGroundShockTime) / Mathf.Max(0.0001f, tuning.groundShockCooldown));
 
     /// <summary>見た目(アニメーション対象)のルート。</summary>
-    public Transform Visual { get; set; }
+    public Transform Visual { get => visual; set => visual = value; }
 
     /// <summary>ジャンプ開始回数 / 着地回数。イベント側が変化を見て処理する。</summary>
     public int JumpCount { get; private set; }
@@ -87,6 +89,15 @@ public class PlayerController : MonoBehaviour
         _rb.constraints = RigidbodyConstraints2D.FreezeRotation;
         // 静止中も接触判定を切らさない(着地後の重なりを Stay で拾うため)
         _rb.sleepMode = RigidbodySleepMode2D.NeverSleep;
+        CaptureRendererAlphas();
+    }
+
+    /// <summary>
+    /// 点滅演出の基準になる不透明度を控える。
+    /// プレハブを出したあとに色を差し替えたら、Bootstrap から呼び直す。
+    /// </summary>
+    public void CaptureRendererAlphas()
+    {
         _renderers = GetComponentsInChildren<SpriteRenderer>();
         _baseAlpha = new float[_renderers.Length];
         for (int i = 0; i < _renderers.Length; i++) _baseAlpha[i] = _renderers[i].color.a;

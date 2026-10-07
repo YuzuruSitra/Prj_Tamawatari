@@ -81,25 +81,25 @@ public class PlatformSpawner : MonoBehaviour
         Color stone = isChain ? tuning.litStone : tuning.dimStone;
         Color core = isChain ? pal
             : new Color(pal.r * tuning.dimCoreFade, pal.g * tuning.dimCoreFade, pal.b * tuning.dimCoreFade, 1f);
-        Color glow = MockUtil.WithAlpha(pal, isChain ? 0.5f : tuning.dimGlowAlpha);
+        Color glow = GameArt.WithAlpha(pal, isChain ? 0.5f : tuning.dimGlowAlpha);
 
         if (great)
         {
             stone = tuning.greatStone;
             core = tuning.greatCore;
-            glow = MockUtil.WithAlpha(tuning.greatCore, 0.8f);
+            glow = GameArt.WithAlpha(tuning.greatCore, 0.8f);
             diameter = tuning.maxPlatformDiameter * Mathf.Max(1f, tuning.greatLanternScale);
         }
 
-        var parts = MockUtil.MakeLantern($"Lantern_{_spawnCount}", diameter * _diameterScale,
-                                         order: isChain ? 0 : -6, lit: isChain, stone, core, glow, great);
-        var go = parts.Root;
-        go.transform.SetParent(transform, true);
-        go.transform.position = pos;
+        var go = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.lantern : null, transform);
+        if (go == null) return null;
 
-        var lp = go.AddComponent<LanternPlatform>();
-        lp.Setup(colorId, isChain, parts);
-        lp.IsGreat = great;
+        go.name = $"Lantern_{_spawnCount}";
+        go.transform.position = pos;
+        go.transform.localScale = Vector3.one * Mathf.Max(0.01f, diameter * _diameterScale);
+
+        var lp = go.GetComponent<LanternPlatform>();
+        lp.Setup(colorId, lit: isChain, great: great, order: isChain ? 0 : -6, stone, core, glow);
         if (_golden) lp.SetGolden(true, tuning.goldColor);
         else if (!great && _blockedColor >= 0 && colorId == _blockedColor) lp.SetUsable(false, tuning.disabledColor);
 
@@ -152,11 +152,12 @@ public class PlatformSpawner : MonoBehaviour
 
         // 安全な道は色替えイベント中でも必ず踏めるようにする
         var first = SpawnPlatform(fromPos, diameter, isChain: true);
-        first.SetUsable(true, tuning.disabledColor);
+        if (first != null) first.SetUsable(true, tuning.disabledColor);
         for (int i = 0; i < Mathf.Max(1, count); i++)
         {
             _lastPos += d * Mathf.Max(0.5f, gap);
-            SpawnPlatform(_lastPos, diameter, isChain: true).SetUsable(true, tuning.disabledColor);
+            var lp = SpawnPlatform(_lastPos, diameter, isChain: true);
+            if (lp != null) lp.SetUsable(true, tuning.disabledColor);
         }
 
         while (_chain.Count < tuning.aheadCount + 1) SpawnChainStep();

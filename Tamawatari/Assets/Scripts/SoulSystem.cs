@@ -31,11 +31,13 @@ public class SoulSystem : MonoBehaviour
         _indicator = indicator;
         _player = player;
         // 味方の魂 = 小さめの人魂だが「暖色 + 上に光る印」で敵と区別できる見た目
+        // (Assets/Prefabs/Soul.prefab に焼いてある)
         _soulTf = new Transform[Mathf.Max(1, MaxSouls)];
         for (int i = 0; i < _soulTf.Length; i++)
         {
-            var go = MockUtil.MakeHitodama($"Soul_{i}", new Color(1f, 0.72f, 0.28f, 0.92f),
-                                           0.34f, order: 16, friendly: true);
+            var go = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.soul : null);
+            if (go == null) continue;
+            go.name = $"Soul_{i}";
             _soulTf[i] = go.transform;
             go.SetActive(false);
         }

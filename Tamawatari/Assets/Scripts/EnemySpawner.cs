@@ -1,7 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// プレイヤー周囲(前後左右ランダム)から一定間隔でおばけ(黒い円)を出現させる(完全2D)。
+/// プレイヤー周囲(前後左右ランダム)から一定間隔でおばけを出現させる(完全2D)。
+/// 実体は <c>Assets/Prefabs/Enemy.prefab</c>。大きさと色だけ EnemyTuning から流し込む。
 /// 時間経過で出現間隔が短く・移動速度が速くなる(難易度上昇)。挙動は EnemyTuning で調整。
 /// </summary>
 public class EnemySpawner : MonoBehaviour
@@ -65,15 +66,14 @@ public class EnemySpawner : MonoBehaviour
         Vector3 pos = player.position + dir * tuning.spawnRadius;
         pos.z = 0f;
 
-        var go = MockUtil.MakeHitodama("Ghost", tuning.soulColor, tuning.enemyDiameter, order: 8, friendly: false);
-        go.transform.SetParent(transform, true);
+        var go = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.enemy : null, transform);
+        if (go == null) return;
+
         go.transform.position = pos;
+        go.transform.localScale = Vector3.one * Mathf.Max(0.01f, tuning.enemyDiameter);
+        go.GetComponent<TintedParts>()?.SetTint(tuning.soulColor);
 
-        var col = go.AddComponent<CircleCollider2D>();
-        col.radius = MockUtil.CircleVisualRadius;
-        col.isTrigger = true;
-
-        go.AddComponent<EnemyController>().Init(player, speed, tuning.weaveAmplitude, tuning.weaveFrequency,
-                                               tuning.despawnDistance, tuning.vanishTime);
+        go.GetComponent<EnemyController>().Init(player, speed, tuning.weaveAmplitude, tuning.weaveFrequency,
+                                                tuning.despawnDistance, tuning.vanishTime);
     }
 }

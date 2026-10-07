@@ -1,10 +1,11 @@
 using UnityEngine;
 
 /// <summary>
-/// InGame シーンにこのコンポーネントを1個置くだけで、必要なオブジェクトを生成・配線する
-/// (完全2D / ハロウィン「灯篭の道」)。プレハブ不要でそのまま Play 可。
+/// InGame シーンにこのコンポーネントを1個置くだけで、必要なオブジェクトを出して配線する
+/// (完全2D / ハロウィン「灯篭の道」)。
 ///
-/// 数値・色はこのコンポーネント上の各 Tuning でまとめて Inspector 調整できる。
+/// 見た目を持つものは <see cref="GameAssets"/> のプレハブを Instantiate するだけで、
+/// ここで組み立てはしない。数値・色はこのコンポーネント上の各 Tuning でまとめて調整できる。
 /// </summary>
 public class InGameBootstrap : MonoBehaviour
 {
@@ -18,7 +19,6 @@ public class InGameBootstrap : MonoBehaviour
     [SerializeField] private AtmosphereTuning atmosphereTuning = new AtmosphereTuning();
     [SerializeField] private EventTuning eventTuning = new EventTuning();
     [SerializeField] private ScoreTuning scoreTuning = new ScoreTuning();
-    [SerializeField] private FontTuning fontTuning = new FontTuning();
     [SerializeField] private AudioTuning audioTuning = new AudioTuning();
     [SerializeField] private SectionTuning sectionTuning = new SectionTuning();
     [SerializeField] private TouchTuning touchTuning = new TouchTuning();
@@ -39,14 +39,11 @@ public class InGameBootstrap : MonoBehaviour
         if (atmosphereTuning == null) atmosphereTuning = new AtmosphereTuning();
         if (eventTuning == null) eventTuning = new EventTuning();
         if (scoreTuning == null) scoreTuning = new ScoreTuning();
-        if (fontTuning == null) fontTuning = new FontTuning();
         if (audioTuning == null) audioTuning = new AudioTuning();
         if (sectionTuning == null) sectionTuning = new SectionTuning();
         if (touchTuning == null || touchTuning.buttonDiameter <= 0f) touchTuning = new TouchTuning();
         AudioManager.Tuning = audioTuning;
         AudioManager.StartBgm();
-        MockUtil.ConfigureFonts(fontTuning.display, fontTuning.body,
-                                fontTuning.displayResource, fontTuning.bodyResource);
         if (platformTuning.palette == null || platformTuning.palette.Length == 0)
             platformTuning.palette = new PlatformTuning().palette;
 
@@ -54,28 +51,30 @@ public class InGameBootstrap : MonoBehaviour
         var gm = new GameObject("GameManager").AddComponent<GameManager>();
         gm.Score = scoreTuning;
 
-        // --- Player (root はスケール1。見た目は Visual 子オブジェクト) ---
-        var playerGo = new GameObject("Player");
-        playerGo.tag = "Player";
-        var visual = MockUtil.MakeBossGhost("Visual", playerTuning.bodyColor,
-                                            playerTuning.playerDiameter, order: 10);
-        visual.transform.SetParent(playerGo.transform, false);
+        // --- Player (プレハブ。root はスケール1で、見た目は Visual 子オブジェクト) ---
+        var playerGo = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.player : null);
+        if (playerGo == null)
+        {
+            Debug.LogError("[InGameBootstrap] Player プレハブが無いので開始できません。"
+                           + " Tamawatari > アセット > 焼き直す を実行してください。");
+            return;
+        }
 
-        var pCol = playerGo.AddComponent<CircleCollider2D>();
-        pCol.radius = playerTuning.playerDiameter * MockUtil.CircleVisualRadius;
-        pCol.isTrigger = false;
-
-        var pc = playerGo.AddComponent<PlayerController>();      // RequireComponent が Rigidbody2D を追加
+        var pc = playerGo.GetComponent<PlayerController>();
         pc.Tuning = playerTuning;
-        pc.Visual = visual.transform;
 
-        var anim = playerGo.AddComponent<PlayerAnimator>();
-        anim.Init(pc, visual.transform, playerAnimTuning);
+        var pCol = playerGo.GetComponent<CircleCollider2D>();
+        pCol.radius = playerTuning.playerDiameter * GameArt.CircleVisualRadius;
+
+        // 見た目の大きさと色は Tuning から流し込む(Visual のスケール = 直径)
+        pc.Visual.localScale = Vector3.one * playerTuning.playerDiameter;
+        pc.Visual.GetComponent<TintedParts>()?.SetTint(playerTuning.bodyColor);
+        pc.CaptureRendererAlphas();          // 色を差し替えたので点滅の基準を取り直す
+
+        playerGo.GetComponent<PlayerAnimator>().Init(pc, pc.Visual, playerAnimTuning);
 
         // --- 方向カーソル(矢印・振り子) ---
-        var indGo = new GameObject("JumpIndicator");
-        indGo.transform.SetParent(playerGo.transform, false);
-        var indicator = indGo.AddComponent<JumpIndicator>();
+        var indicator = playerGo.GetComponentInChildren<JumpIndicator>(true);
         indicator.Center = playerGo.transform;
         indicator.Tuning = indicatorTuning;
 
@@ -85,7 +84,7 @@ public class InGameBootstrap : MonoBehaviour
         ps.Player = pc;
 
         // --- SoulSystem ---
-        var soul = playerGo.AddComponent<SoulSystem>();
+        var soul = playerGo.GetComponent<SoulSystem>();
         soul.Init(playerTuning, ps, indicator, pc);
 
         pc.Indicator = indicator;
@@ -130,17 +129,22 @@ public class InGameBootstrap : MonoBehaviour
         // --- スマホ用バーチャルパッド(タッチ環境でなければ隠れたまま) ---
         VirtualPad.Create(touchTuning);
 
-        // --- UIManager ---
-        var ui = new GameObject("UIManager").AddComponent<UIManager>();
-        ui.Player = pc;
-        ui.PlatformSpawner = ps;
-        ui.Souls = soul;
-        ui.EventTuning = eventTuning;
+        // --- HUD (プレハブ。UIManager はその Canvas に付いている) ---
+        var hud = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.hudCanvas : null);
+        var ui = hud != null ? hud.GetComponent<UIManager>() : null;
+        if (ui != null)
+        {
+            ui.Player = pc;
+            ui.PlatformSpawner = ps;
+            ui.Souls = soul;
+            ui.EventTuning = eventTuning;
+        }
 
         // --- イベント(磁気嵐 / 大量発生 / 色替え / 濃霧) ---
+        EventDirector events = null;
         if (eventTuning.enabled)
         {
-            var events = new GameObject("EventDirector").AddComponent<EventDirector>();
+            events = new GameObject("EventDirector").AddComponent<EventDirector>();
             events.Init(new GameEventContext
             {
                 Player = pc,
@@ -150,18 +154,12 @@ public class InGameBootstrap : MonoBehaviour
                 Atmosphere = atmos,
                 Ui = ui,
             }, eventTuning);
-            ui.Events = events;
+            if (ui != null) ui.Events = events;
+        }
 
-            // --- 区間(大灯籠のチェックポイント) ---
-            var section = new GameObject("SectionDirector").AddComponent<SectionDirector>();
-            section.Init(sectionTuning, ps, es, events, ui, playerGo.transform);
-            ui.Sections = section;
-        }
-        else
-        {
-            var section = new GameObject("SectionDirector").AddComponent<SectionDirector>();
-            section.Init(sectionTuning, ps, es, null, ui, playerGo.transform);
-            ui.Sections = section;
-        }
+        // --- 区間(大灯籠のチェックポイント) ---
+        var section = new GameObject("SectionDirector").AddComponent<SectionDirector>();
+        section.Init(sectionTuning, ps, es, events, ui, playerGo.transform);
+        if (ui != null) ui.Sections = section;
     }
 }

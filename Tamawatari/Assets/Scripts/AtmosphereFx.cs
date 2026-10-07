@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// 背景の空気感。灯篭の火の粉のような光の粒が、画面内をゆっくり昇っていく。
-/// 生成した粒は使い回す(Destroy/Instantiate しない)。
+/// 粒は <c>Assets/Prefabs/Mote.prefab</c> を最初に必要数だけ出して使い回す。
 /// </summary>
 public class AtmosphereFx : MonoBehaviour
 {
@@ -32,6 +32,9 @@ public class AtmosphereFx : MonoBehaviour
         }
     }
 
+    /// <summary>背景の粒なので、灯篭より後ろに描く。</summary>
+    private const int MoteSortingOrder = -20;
+
     private Camera _cam;
     private Transform[] _motes;
     private SpriteRenderer[] _srs;
@@ -54,10 +57,14 @@ public class AtmosphereFx : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             float d = Random.Range(tuning.sizeRange.x, tuning.sizeRange.y);
-            var go = MockUtil.MakeGlow($"Mote_{i}", tuning.moteColor, d, sortingOrder: -20);
-            go.transform.SetParent(transform, true);
+            var go = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.mote : null, transform);
+            if (go == null) continue;
+            go.name = $"Mote_{i}";
+            go.transform.localScale = Vector3.one * Mathf.Max(0.01f, d);
             _motes[i] = go.transform;
             _srs[i] = go.GetComponent<SpriteRenderer>();
+            _srs[i].color = tuning.moteColor;
+            _srs[i].sortingOrder = MoteSortingOrder;
             _rise[i] = Random.Range(tuning.riseSpeedRange.x, tuning.riseSpeedRange.y);
             _phase[i] = Random.Range(0f, Mathf.PI * 2f);
             _wobbleAmp[i] = Random.Range(0.3f, 1f) * tuning.wobble;
@@ -68,7 +75,7 @@ public class AtmosphereFx : MonoBehaviour
 
     private void Place(int i, float vertical01)
     {
-        if (_cam == null) return;
+        if (_cam == null || _motes[i] == null) return;
         float halfH = _cam.orthographicSize;
         float halfW = halfH * Mathf.Max(0.1f, _cam.aspect);
         Vector3 c = _cam.transform.position;

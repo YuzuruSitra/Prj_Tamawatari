@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,6 +7,9 @@ using UnityEngine.UI;
 ///  - かな(五十音)ページと英数ページを切り替えられる
 ///  - 濁点 / 半濁点 / 小文字 は直前の1文字に対して掛ける(もう一度押すと戻る)
 /// EventSystem は使わず、押された画面座標とキーの矩形を突き合わせて判定する。
+///
+/// キーの並びは <c>Assets/Prefabs/UI/SoftKeyboard.prefab</c> に焼いてある。
+/// ここでは押されたキーの見た目と文字の出し入れだけを行う。
 /// </summary>
 public class OnScreenKeyboard : MonoBehaviour
 {
@@ -39,9 +41,10 @@ public class OnScreenKeyboard : MonoBehaviour
     private const string Handakuten = "はぱひぴふぷへぺほぽ";
     private const string Small = "あぁいぃうぅえぇおぉつっやゃゆゅよょ";
 
-    private enum KeyKind { Char, Backspace, Dakuten, Handakuten, Small, TogglePage, Commit }
+    public enum KeyKind { Char, Backspace, Dakuten, Handakuten, Small, TogglePage, Commit }
 
-    private class Key
+    [System.Serializable]
+    public class Key
     {
         public RectTransform Rt;
         public Image Bg;
@@ -55,11 +58,15 @@ public class OnScreenKeyboard : MonoBehaviour
     private static readonly Color KeyFace = new Color(0.16f, 0.13f, 0.2f, 0.96f);
     private static readonly Color KeyFaceLit = new Color(0.42f, 0.3f, 0.5f, 0.98f);
 
-    private readonly List<Key> _charKeys = new List<Key>();
-    private readonly List<Key> _funcKeys = new List<Key>();
-    private RectTransform _panel;
-    private Image _dim;
-    private Text _preview;
+    [Header("プレハブ上のパーツ")]
+    [SerializeField] private RectTransform panel;
+    [SerializeField] private Text preview;
+    [Tooltip("五十音 / 英数を貼り替える文字キー。Rows x Cols の並び順")]
+    [SerializeField] private Key[] charKeys;
+    [Tooltip("濁点・小文字・ページ切替・けす・決定")]
+    [SerializeField] private Key[] funcKeys;
+
+    private Key _toggleKey;
     private Key _pressed;
     private float _pressT;
     private bool _kana = true;
@@ -75,15 +82,21 @@ public class OnScreenKeyboard : MonoBehaviour
     public bool IsOpen => gameObject.activeSelf;
     public string Text => _text;
     /// <summary>キーボードが占める画面矩形(外側を触ったかの判定に使う)。</summary>
-    public Rect ScreenArea => MockUtil.ScreenRect(_panel);
+    public Rect ScreenArea => GameArt.ScreenRect(panel);
 
     public static OnScreenKeyboard Create()
     {
-        var canvas = MockUtil.CreateCanvas("SoftKeyboard", 500);
-        var kb = canvas.gameObject.AddComponent<OnScreenKeyboard>();
-        kb.Build(canvas.transform);
-        canvas.gameObject.SetActive(false);
-        return kb;
+        var go = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.softKeyboard : null);
+        if (go == null) return null;
+        go.SetActive(false);
+        return go.GetComponent<OnScreenKeyboard>();
+    }
+
+    private void Awake()
+    {
+        if (funcKeys == null) return;
+        foreach (var k in funcKeys)
+            if (k != null && k.Kind == KeyKind.TogglePage) { _toggleKey = k; break; }
     }
 
     public void Open(string initial, int maxLength)
@@ -99,65 +112,19 @@ public class OnScreenKeyboard : MonoBehaviour
 
     public void Close() => gameObject.SetActive(false);
 
-    // ==================== 組み立て ====================
-    private Key _toggleKey;
-
-    private void Build(Transform root)
-    {
-        _dim = MockUtil.CreateImage(root, new Color(0.02f, 0.015f, 0.04f, 0.82f),
-            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, "Dim");
-
-        _panel = MockUtil.CreateRect(root, "Panel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
-            new Vector2(-500f, 20f), new Vector2(500f, 660f));
-        MockUtil.CreateImage(_panel, new Color(0.09f, 0.07f, 0.13f, 0.985f),
-            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, "Plate");
-        MockUtil.CreateBox(_panel, MockUtil.WithAlpha(Ember, 0.85f), new Vector2(0f, 318f),
-            new Vector2(1000f, 4f), "topRule");
-
-        MockUtil.CreateBox(_panel, new Color(0.03f, 0.02f, 0.05f, 0.92f), new Vector2(0f, 270f),
-            new Vector2(950f, 72f), "previewPlate");
-        _preview = MockUtil.CreateText(_panel, "", 40, TextAnchor.MiddleCenter,
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(-466f, 234f), new Vector2(466f, 306f), Cream);
-
-        for (int r = 0; r < Rows; r++)
-            for (int c = 0; c < Cols; c++)
-                _charKeys.Add(MakeKey(new Vector2(-441f + c * 98f, 184f - r * 84f),
-                                      new Vector2(90f, 76f), "", KeyKind.Char, 34));
-
-        var fs = new Vector2(155f, 84f);
-        _funcKeys.Add(MakeKey(new Vector2(-408f, -244f), fs, "゛", KeyKind.Dakuten, 34));
-        _funcKeys.Add(MakeKey(new Vector2(-245f, -244f), fs, "゜", KeyKind.Handakuten, 34));
-        _funcKeys.Add(MakeKey(new Vector2(-82f, -244f), fs, "小", KeyKind.Small, 30));
-        _toggleKey = MakeKey(new Vector2(81f, -244f), fs, "ABC", KeyKind.TogglePage, 28);
-        _funcKeys.Add(_toggleKey);
-        _funcKeys.Add(MakeKey(new Vector2(244f, -244f), fs, "けす", KeyKind.Backspace, 28));
-        var commit = MakeKey(new Vector2(407f, -244f), fs, "決定", KeyKind.Commit, 30);
-        commit.Bg.color = new Color(0.44f, 0.27f, 0.1f, 0.96f);
-        _funcKeys.Add(commit);
-
-        ApplyPage();
-    }
-
-    private Key MakeKey(Vector2 center, Vector2 size, string label, KeyKind kind, int fontSize)
-    {
-        var bg = MockUtil.CreateBox(_panel, KeyFace, center, size, "key");
-        var rt = bg.rectTransform;
-        var txt = MockUtil.CreateText(rt, label, fontSize, TextAnchor.MiddleCenter,
-            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, Cream);
-        return new Key { Rt = rt, Bg = bg, Label = txt, Ch = label, Kind = kind };
-    }
-
     /// <summary>かな / 英数 のページを貼り替える。字が無いところはキー自体を消す。</summary>
     private void ApplyPage()
     {
+        if (charKeys == null || charKeys.Length < Rows * Cols) return;
+        if (_toggleKey == null) Awake();
+
         var rows = _kana ? KanaRows : AlnumRows;
         for (int r = 0; r < Rows; r++)
         {
             string row = r < rows.Length ? rows[r] : "";
             for (int c = 0; c < Cols; c++)
             {
-                var key = _charKeys[r * Cols + c];
+                var key = charKeys[r * Cols + c];
                 char ch = c < row.Length ? row[c] : '\u3000';
                 bool has = ch != '\u3000';
                 key.Ch = has ? ch.ToString() : "";
@@ -195,15 +162,15 @@ public class OnScreenKeyboard : MonoBehaviour
 
     private Key Find(Vector2 pos)
     {
-        for (int i = 0; i < _charKeys.Count; i++)
+        for (int i = 0; charKeys != null && i < charKeys.Length; i++)
         {
-            var k = _charKeys[i];
-            if (k.Rt.gameObject.activeSelf && MockUtil.ScreenRect(k.Rt).Contains(pos)) return k;
+            var k = charKeys[i];
+            if (k?.Rt != null && k.Rt.gameObject.activeSelf && GameArt.ScreenRect(k.Rt).Contains(pos)) return k;
         }
-        for (int i = 0; i < _funcKeys.Count; i++)
+        for (int i = 0; funcKeys != null && i < funcKeys.Length; i++)
         {
-            var k = _funcKeys[i];
-            if (MockUtil.ScreenRect(k.Rt).Contains(pos)) return k;
+            var k = funcKeys[i];
+            if (k?.Rt != null && GameArt.ScreenRect(k.Rt).Contains(pos)) return k;
         }
         return null;
     }
@@ -245,8 +212,9 @@ public class OnScreenKeyboard : MonoBehaviour
 
     private void UpdatePreview()
     {
+        if (preview == null) return;
         bool caret = ((Time.unscaledTime * 2f) % 1f) < 0.55f;
-        _preview.text = _text + (caret ? "|" : "");
+        preview.text = _text + (caret ? "|" : "");
     }
 
     private static void Tint(Key k, bool lit)
@@ -254,4 +222,12 @@ public class OnScreenKeyboard : MonoBehaviour
         if (k == null || k.Kind == KeyKind.Commit) return;
         k.Bg.color = lit ? KeyFaceLit : KeyFace;
     }
+
+#if UNITY_EDITOR
+    /// <summary>焼き直しツールから、プレハブのパーツ参照を差し込むために使う。</summary>
+    public void BindPartsForBake(RectTransform panelRt, Text previewText, Key[] chars, Key[] funcs)
+    {
+        panel = panelRt; preview = previewText; charKeys = chars; funcKeys = funcs;
+    }
+#endif
 }

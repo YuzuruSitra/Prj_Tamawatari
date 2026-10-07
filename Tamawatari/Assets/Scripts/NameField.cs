@@ -11,6 +11,8 @@ using UnityEngine.UI;
 ///           自前の OnScreenKeyboard を出す。
 /// 編集中は InputHub.Suppressed を立てて、SPACE / タップでゲームが始まらないようにする。
 /// 入れた名前は ScoreBoard.PlayerName に保存され、ランキングに残る。
+///
+/// 見た目は <c>Assets/Prefabs/UI/TitleCanvas.prefab</c> の中に組み込んである。
 /// </summary>
 public class NameField : MonoBehaviour
 {
@@ -20,9 +22,12 @@ public class NameField : MonoBehaviour
     private static readonly Color Ember = new Color(1f, 0.68f, 0.28f);
     private static readonly Color Dim = new Color(0.62f, 0.58f, 0.58f);
 
-    private RectTransform _box;
-    private Image _plate, _underline;
-    private Text _value, _hint;
+    [Header("プレハブ上のパーツ")]
+    [SerializeField] private RectTransform box;
+    [SerializeField] private Image plate;
+    [SerializeField] private Image underline;
+    [SerializeField] private Text value;
+    [SerializeField] private Text hint;
 
     private string _name = "";
     private string _editing = "";
@@ -37,15 +42,6 @@ public class NameField : MonoBehaviour
     /// <summary>いま決まっている名前。</summary>
     public string Name => _name;
     public bool IsEditing => _isEditing;
-
-    public static NameField Create(Transform parent, float centerY)
-    {
-        var root = MockUtil.CreateRect(parent, "NameField", Vector2.zero, Vector2.one,
-                                       Vector2.zero, Vector2.zero);
-        var f = root.gameObject.AddComponent<NameField>();
-        f.Build(root, centerY);
-        return f;
-    }
 
     private void Awake()
     {
@@ -64,34 +60,10 @@ public class NameField : MonoBehaviour
     /// <summary>枠より少し広めに取った当たり判定。スマホで押しやすくするため。</summary>
     private Rect HitRect()
     {
-        var r = MockUtil.ScreenRect(_box);
+        var r = GameArt.ScreenRect(box);
         if (r.width <= 0f) return r;
         float pad = r.height * 0.45f;
         return new Rect(r.x - pad, r.y - pad, r.width + pad * 2f, r.height + pad * 2f);
-    }
-
-    private void Build(Transform root, float centerY)
-    {
-        MockUtil.CreateText(root, "なまえ", 24, TextAnchor.MiddleRight,
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(-340f, centerY - 26f), new Vector2(-200f, centerY + 26f),
-            new Color(0.82f, 0.76f, 0.72f));
-
-        _box = MockUtil.CreateRect(root, "Box", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(-180f, centerY - 29f), new Vector2(340f, centerY + 29f));
-        _plate = MockUtil.CreateImage(_box, new Color(0.08f, 0.06f, 0.12f, 0.9f),
-            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, "plate");
-        _underline = MockUtil.CreateImage(_box, MockUtil.WithAlpha(Ember, 0.5f),
-            new Vector2(0f, 0f), new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 3f), "underline");
-
-        _value = MockUtil.CreateText(_box, "", 30, TextAnchor.MiddleLeft,
-            Vector2.zero, Vector2.one, new Vector2(18f, 0f), new Vector2(-18f, 0f), Cream);
-
-        _hint = MockUtil.CreateText(root, "", 18, TextAnchor.UpperCenter,
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(-440f, centerY - 64f), new Vector2(440f, centerY - 34f), Dim);
-
-        UpdateVisual();
     }
 
     private void Update()
@@ -203,19 +175,30 @@ public class NameField : MonoBehaviour
 
     private void UpdateVisual()
     {
+        if (value == null) return;
+
         bool caret = _isEditing && ((Time.unscaledTime * 2f) % 1f) < 0.55f;
         string shown = _isEditing ? _editing : _name;
-        bool empty = string.IsNullOrEmpty(shown);
+        bool blank = string.IsNullOrEmpty(shown);
 
-        _value.text = _isEditing ? shown + (caret ? "|" : "") : (empty ? Placeholder : shown);
-        _value.color = (!_isEditing && empty) ? Dim : Cream;
-        _plate.color = _isEditing ? new Color(0.12f, 0.09f, 0.17f, 0.95f)
-                                  : new Color(0.08f, 0.06f, 0.12f, 0.9f);
-        _underline.color = MockUtil.WithAlpha(Ember, _isEditing ? 0.95f : 0.5f);
+        value.text = _isEditing ? shown + (caret ? "|" : "") : (blank ? Placeholder : shown);
+        value.color = (!_isEditing && blank) ? Dim : Cream;
+        plate.color = _isEditing ? new Color(0.12f, 0.09f, 0.17f, 0.95f)
+                                 : new Color(0.08f, 0.06f, 0.12f, 0.9f);
+        underline.color = GameArt.WithAlpha(Ember, _isEditing ? 0.95f : 0.5f);
 
         bool touch = InputHub.WantsTouchUi;
-        _hint.text = _isEditing
+        hint.text = _isEditing
             ? (touch ? "きめたら 決定 か 外がわをタップ" : "ENTER : きめる      ESC : やめる")
             : (touch ? "ここをタップして なまえ を入れる" : "クリック か TAB で なまえ を入れる");
     }
+
+#if UNITY_EDITOR
+    /// <summary>焼き直しツールから、プレハブのパーツ参照を差し込むために使う。</summary>
+    public void BindPartsForBake(RectTransform boxRt, Image plateImg, Image underlineImg,
+                                 Text valueText, Text hintText)
+    {
+        box = boxRt; plate = plateImg; underline = underlineImg; value = valueText; hint = hintText;
+    }
+#endif
 }

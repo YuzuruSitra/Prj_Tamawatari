@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// 小さな可愛いお化けがふわっと浮かんで消える演出(新規)。
+/// 小さな可愛いお化けがふわっと浮かんで消える演出(<c>Assets/Prefabs/GhostPoof.prefab</c>)。
 /// ゲームオーバー・クリア・敵の統合などスタイリッシュに見せたい場面で Spawn する。
-/// SpriteRenderer を複数組み合わせて簡易的なお化け形を作る。
+/// 体の色はプレハブ上の <see cref="TintedParts"/> に流し込む。
 /// </summary>
 public class GhostPoof : MonoBehaviour
 {
@@ -18,33 +18,23 @@ public class GhostPoof : MonoBehaviour
 
     public static GhostPoof Spawn(Vector3 pos, Color bodyColor, float scale = 1f, float life = 1.1f)
     {
-        var root = new GameObject("GhostPoof");
-        root.transform.position = new Vector3(pos.x, pos.y, 0f);
-        root.transform.localScale = Vector3.one * scale;
+        var go = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.ghostPoof : null);
+        if (go == null) return null;
 
-        AddPart(root.transform, new Vector2(0f, 0f), 1.0f, bodyColor, 30);
-        AddPart(root.transform, new Vector2(-0.28f, -0.42f), 0.44f, bodyColor, 30);
-        AddPart(root.transform, new Vector2(0.02f, -0.44f), 0.44f, bodyColor, 30);
-        AddPart(root.transform, new Vector2(0.32f, -0.42f), 0.44f, bodyColor, 30);
-        AddPart(root.transform, new Vector2(-0.2f, 0.12f), 0.2f, new Color(0.15f, 0.15f, 0.2f, 1f), 31);
-        AddPart(root.transform, new Vector2(0.2f, 0.12f), 0.2f, new Color(0.15f, 0.15f, 0.2f, 1f), 31);
-        AddPart(root.transform, new Vector2(-0.34f, -0.06f), 0.16f, new Color(1f, 0.55f, 0.6f, 0.7f), 31);
-        AddPart(root.transform, new Vector2(0.34f, -0.06f), 0.16f, new Color(1f, 0.55f, 0.6f, 0.7f), 31);
+        go.transform.position = new Vector3(pos.x, pos.y, 0f);
+        go.transform.localScale = Vector3.one * scale;
 
-        var poof = root.AddComponent<GhostPoof>();
-        poof.life = life;
+        var poof = go.GetComponent<GhostPoof>();
+        if (poof != null) poof.Init(bodyColor, life);
         return poof;
     }
 
-    private static void AddPart(Transform parent, Vector2 local, float dia, Color c, int order)
+    private void Init(Color bodyColor, float lifeTime)
     {
-        var go = MockUtil.MakeCircle("part", c, dia, order);
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = new Vector3(local.x, local.y, 0f);
-    }
+        life = lifeTime;
+        GetComponent<TintedParts>()?.SetTint(bodyColor);
 
-    private void Awake()
-    {
+        // 色を決めたあとで、消えるときの基準になる不透明度を控える
         _parts = GetComponentsInChildren<SpriteRenderer>();
         _baseAlpha = new float[_parts.Length];
         for (int i = 0; i < _parts.Length; i++) _baseAlpha[i] = _parts[i].color.a;
@@ -53,6 +43,7 @@ public class GhostPoof : MonoBehaviour
 
     private void Update()
     {
+        if (_parts == null) return;
         _t += Time.deltaTime;
         float k = Mathf.Clamp01(_t / Mathf.Max(0.05f, life));
 

@@ -1,89 +1,104 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// ランキング表示パネル。タイトルとリザルトの両方から Shift で開く。
+/// ランキング表示パネル(<c>Assets/Prefabs/UI/RankingPanel.prefab</c>)。
+/// タイトルとリザルトの両方から Shift で開く。閉じるときの案内文だけ呼び出し側で差し替える。
+///
+/// 出すのは端末内の <see cref="ScoreBoard"/> だけ。**通信は行わない**。
+///
+/// 開いている間は「画像をコピー」(P / パッド △ / カード右上のボタン)でこの一覧を画像にして
+/// クリップボードに置ける。撮るのは <see cref="ScoreShot"/>、ここは飾りの出し入れだけ。
 /// </summary>
 public class RankingView : MonoBehaviour
 {
     private const int Rows = ScoreBoard.Capacity;
 
-    private Text[] _left = new Text[Rows];
-    private Text[] _right = new Text[Rows];
-    private Image[] _rowBg = new Image[Rows];
-    private Text _empty;
+    /// <summary>コピーの結果を出しておく秒数。</summary>
+    private const float NoteLife = 5f;
+
+    [Header("プレハブ上のパーツ")]
+    [SerializeField] private Text[] left = new Text[Rows];
+    [SerializeField] private Text[] right = new Text[Rows];
+    [SerializeField] private Image[] rowBg = new Image[Rows];
+    [SerializeField] private Text empty;
+    [SerializeField] private InputLabel hintLabel;
+
+    [Header("画像コピー")]
+    [SerializeField] private RectTransform copyButton;
+    [Tooltip("ボタンの後ろのぼんやりした光")]
+    [SerializeField] private Image copyGlow;
+    [Tooltip("カプセルの縁取り(箱 + 両端の円の3枚)")]
+    [SerializeField] private Image[] copyEdge;
+    [Tooltip("カプセルの面(箱 + 両端の円の3枚)")]
+    [SerializeField] private Image[] copyFace;
+    [SerializeField] private Text copyLabel;
+    [SerializeField] private Text copyKey;
+    [Tooltip("撮るときだけ出す署名(ゲーム名・日付)")]
+    [SerializeField] private Text copyStamp;
+    [Tooltip("コピーの結果を数秒だけ出す")]
+    [SerializeField] private Text copyNote;
 
     private static readonly Color Cream = new Color(0.94f, 0.90f, 0.83f);
     private static readonly Color Ember = new Color(1f, 0.68f, 0.28f);
-    private static readonly Color Dim = new Color(0.62f, 0.58f, 0.58f);
 
+    // 画像コピー
+    private System.Func<Rect> _captureArea;
+    private bool _capturing;
+    private float _press;
+    private string _noteText = "";
+    private float _noteTime = -99f;
+    private bool _noteOk;
+
+    /// <summary>Canvas の下に1枚置く。hint は {C} / {S} を含む案内文。</summary>
     public static RankingView Create(Transform parent, string hint)
     {
-        var root = MockUtil.CreateRect(parent, "RankingPanel", Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        MockUtil.CreateImage(root, new Color(0.02f, 0.015f, 0.04f, 0.92f),
-            Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, "Dim");
+        var go = GameAssets.Spawn(GameAssets.I != null ? GameAssets.I.rankingPanel : null, parent);
+        if (go == null) return null;
 
-        var card = MockUtil.CreateImage(root, new Color(0.10f, 0.08f, 0.14f, 0.985f),
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-            new Vector2(-520, -300), new Vector2(520, 300), "Card");
-        var c = card.transform;
-
-        MockUtil.CreateBox(c, MockUtil.WithAlpha(Ember, 0.9f), new Vector2(0, 290), new Vector2(1040, 5), "top");
-        MockUtil.CreateBox(c, MockUtil.WithAlpha(Ember, 0.35f), new Vector2(0, -290), new Vector2(1040, 3), "bottom");
-
-        MockUtil.CreateText(c, "R A N K I N G", 46, TextAnchor.UpperCenter,
-            new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -86), new Vector2(0, -22), Ember, display: true);
-        MockUtil.CreateBox(c, MockUtil.WithAlpha(Ember, 0.4f), new Vector2(0, 198), new Vector2(280, 2), "rule");
-
-        var v = root.gameObject.AddComponent<RankingView>();
-
-        for (int i = 0; i < Rows; i++)
-        {
-            float y = 152f - i * 52f;
-            v._rowBg[i] = MockUtil.CreateBox(c, new Color(1f, 1f, 1f, 0.035f), new Vector2(0, y), new Vector2(960, 44), $"row{i}");
-            v._left[i] = MockUtil.CreateText(c, "", 20, TextAnchor.MiddleLeft,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(-464, y - 22), new Vector2(250, y + 22), Cream);
-            v._right[i] = MockUtil.CreateText(c, "", 28, TextAnchor.MiddleRight,
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(250, y - 22), new Vector2(464, y + 22), Ember);
-        }
-
-        v._empty = MockUtil.CreateText(c, "まだ記録がありません", 24, TextAnchor.MiddleCenter,
-            new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-300, -20), new Vector2(300, 30), Dim);
-
-        InputLabel.Bind(MockUtil.CreateText(c, "", 21, TextAnchor.LowerCenter,
-            new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 22), new Vector2(0, 58),
-            new Color(0.74f, 0.7f, 0.68f)), hint);
-
-        root.gameObject.SetActive(false);
+        var v = go.GetComponent<RankingView>();
+        if (v != null && v.hintLabel != null) v.hintLabel.Format = hint;
+        go.SetActive(false);
         return v;
     }
 
-    /// <summary>一覧を読み直して描画する。highlight は強調する順位(0始まり、なければ -1)。</summary>
+    /// <summary>
+    /// 一覧を読み直して描画する。highlight は強調する順位(0始まり、なければ -1)。
+    /// </summary>
     public void Refresh(int highlight = -1)
     {
         var list = ScoreBoard.Load();
-        _empty.gameObject.SetActive(list.Count == 0);
+        if (empty != null) empty.gameObject.SetActive(list.Count == 0);
 
-        for (int i = 0; i < Rows; i++)
+        for (int i = 0; i < Rows && i < left.Length; i++)
         {
             bool has = i < list.Count;
-            _left[i].gameObject.SetActive(has);
-            _right[i].gameObject.SetActive(has);
-            _rowBg[i].gameObject.SetActive(has);
+            ShowRow(i, has);
             if (!has) continue;
 
             var e = list[i];
-            bool hi = i == highlight;
             string name = string.IsNullOrEmpty(e.Name) ? "ななし" : e.Name;
-            _left[i].text = $"#{i + 1}  {name}   深度 {e.DepthMeters:F1}m   成仏 {e.Kills}   最大 x{e.MaxCombo}" +
-                            (e.Cleared ? "   CLEAR" : "") + $"   {e.Date}";
-            _right[i].text = e.Score.ToString();
-            _left[i].color = hi ? new Color(1f, 0.88f, 0.5f) : (e.Cleared ? new Color(1f, 0.92f, 0.78f) : Cream);
-            _right[i].color = hi ? new Color(1f, 0.85f, 0.35f) : Ember;
-            _rowBg[i].color = hi ? new Color(1f, 0.7f, 0.25f, 0.16f) : new Color(1f, 1f, 1f, 0.035f);
+            left[i].text = $"#{i + 1}  {name}   深度 {e.DepthMeters:F1}m   成仏 {e.Kills}   最大 x{e.MaxCombo}" +
+                           (e.Cleared ? "   CLEAR" : "") + $"   {e.Date}";
+            PaintRow(i, e.Score, i == highlight, e.Cleared);
         }
+    }
+
+    private void ShowRow(int i, bool on)
+    {
+        left[i].gameObject.SetActive(on);
+        right[i].gameObject.SetActive(on);
+        rowBg[i].gameObject.SetActive(on);
+    }
+
+    private void PaintRow(int i, int score, bool hi, bool cleared)
+    {
+        right[i].text = score.ToString();
+        left[i].color = hi ? new Color(1f, 0.88f, 0.5f) : (cleared ? new Color(1f, 0.92f, 0.78f) : Cream);
+        right[i].color = hi ? new Color(1f, 0.85f, 0.35f) : Ember;
+        rowBg[i].color = hi ? new Color(1f, 0.7f, 0.25f, 0.16f) : new Color(1f, 1f, 1f, 0.035f);
     }
 
     public bool IsOpen => gameObject.activeSelf;
@@ -96,4 +111,151 @@ public class RankingView : MonoBehaviour
     }
 
     public void Close() => gameObject.SetActive(false);
+
+    // ==================== 画像コピー ====================
+
+    private void Awake()
+    {
+        // ボタンが出ていない間は空の矩形を返す(タッチが Confirm に抜けるように)
+        _captureArea = () => copyButton != null && copyButton.gameObject.activeInHierarchy
+            ? GameArt.ScreenRect(copyButton)
+            : Rect.zero;
+    }
+
+    private void OnEnable()
+    {
+        InputHub.CaptureTouchArea = _captureArea;
+
+        // 撮影中に閉じられるとコルーチンごと止まるので、開くたびに飾りを出し直す
+        _capturing = false;
+        if (copyButton != null) copyButton.gameObject.SetActive(true);
+        if (hintLabel != null) hintLabel.gameObject.SetActive(true);
+        if (copyStamp != null) copyStamp.gameObject.SetActive(false);
+        ShowNote(true, "");
+    }
+
+    private void OnDisable()
+    {
+        if (InputHub.CaptureTouchArea == _captureArea) InputHub.CaptureTouchArea = null;
+        if (_capturing) ScoreShot.Cancel();
+    }
+
+    private void Update()
+    {
+        UpdateCopyButton();
+        UpdateNote();
+
+        // P / △ / 右下のボタンで、この一覧を画像にしてクリップボードへ
+        if (InputHub.CapturePressed) BeginCapture();
+    }
+
+    /// <summary>
+    /// 一覧をそのまま画像にする。操作案内とコピーボタンは写らないように
+    /// <see cref="ScoreShot"/> に隠してもらい、代わりに署名を1行出す。
+    /// </summary>
+    private void BeginCapture()
+    {
+        if (_capturing || copyButton == null) return;      // 焼き直し前のプレハブには無い
+        _capturing = true;
+        AudioManager.PlayUi();
+        ShowNote(true, "");                                // 前回のお知らせを消しておく
+
+        if (copyStamp != null)
+        {
+            copyStamp.text = $"たまわたり   ランキング   {System.DateTime.Now:yyyy/MM/dd}";
+            copyStamp.gameObject.SetActive(true);
+        }
+
+        var hide = new List<GameObject> { copyButton.gameObject };
+        if (hintLabel != null) hide.Add(hintLabel.gameObject);
+
+        StartCoroutine(RunCapture(hide.ToArray()));
+    }
+
+    private IEnumerator RunCapture(GameObject[] hide)
+    {
+        yield return ScoreShot.Capture(ScoreShot.MakeFileName("ranking"), ShowNote, hide);
+        if (copyStamp != null) copyStamp.gameObject.SetActive(false);
+        _capturing = false;
+    }
+
+    private void ShowNote(bool ok, string text)
+    {
+        _noteText = text ?? "";
+        _noteOk = ok;
+        _noteTime = Time.unscaledTime;
+    }
+
+    /// <summary>コピーの結果を <see cref="NoteLife"/> 秒だけ出す。</summary>
+    private void UpdateNote()
+    {
+        if (copyNote == null) return;
+        float age = Time.unscaledTime - _noteTime;
+        bool show = !string.IsNullOrEmpty(_noteText) && age >= 0f && age < NoteLife;
+        if (copyNote.gameObject.activeSelf != show) copyNote.gameObject.SetActive(show);
+        if (!show) return;
+
+        copyNote.text = _noteText;
+        float fade = Mathf.Clamp01(Mathf.Min(age / 0.12f, (NoteLife - age) / 0.6f));
+        copyNote.color = GameArt.WithAlpha(
+            _noteOk ? new Color(1f, 0.86f, 0.5f) : new Color(1f, 0.55f, 0.48f), fade);
+    }
+
+    /// <summary>
+    /// コピーボタン。普段はかすかに息をして、押している間はEmber 色の縁が白く灯り、
+    /// 後ろの光が強まってわずかに縮む。
+    /// </summary>
+    private void UpdateCopyButton()
+    {
+        if (copyButton == null) return;
+
+        float target = _capturing || InputHub.CaptureHeld ? 1f : 0f;
+        _press = Mathf.MoveTowards(_press, target,
+                                   Time.unscaledDeltaTime * (target > _press ? 14f : 6f));
+
+        // 押していない間のゆっくりした明滅。目を引きすぎないよう振れ幅は小さく
+        float breath = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 1.9f);
+        float lit = Mathf.Max(_press, 0.14f * breath);
+
+        if (copyGlow != null)
+            copyGlow.color = GameArt.WithAlpha(Ember, 0.05f + 0.33f * lit);
+
+        Paint(copyEdge, GameArt.WithAlpha(Color.Lerp(Ember, Color.white, 0.6f * _press),
+                                          0.55f + 0.45f * lit));
+        Paint(copyFace, new Color(0.12f + 0.14f * _press, 0.09f + 0.07f * _press,
+                                  0.16f + 0.12f * _press, 0.98f));
+
+        if (copyLabel != null)
+            copyLabel.color = GameArt.WithAlpha(Color.Lerp(Cream, Color.white, _press),
+                                                _capturing ? 0.45f : 1f);
+        if (copyKey != null)
+            copyKey.color = new Color(0.78f, 0.74f, 0.72f, _capturing ? 0.3f : 0.8f);
+
+        float sc = 1f - 0.05f * _press;
+        copyButton.localScale = new Vector3(sc, sc, 1f);
+    }
+
+    /// <summary>カプセルは3枚で1つの形なので、必ずまとめて塗る。</summary>
+    private static void Paint(Image[] parts, Color color)
+    {
+        for (int i = 0; parts != null && i < parts.Length; i++)
+            if (parts[i] != null) parts[i].color = color;
+    }
+
+#if UNITY_EDITOR
+    /// <summary>焼き直しツールから、プレハブのパーツ参照を差し込むために使う。</summary>
+    public void BindPartsForBake(Text[] leftTexts, Text[] rightTexts, Image[] rowBackgrounds,
+                                 Text emptyText, InputLabel hint)
+    {
+        left = leftTexts; right = rightTexts; rowBg = rowBackgrounds; empty = emptyText;
+        hintLabel = hint;
+    }
+
+    public void SetCopyRefs(RectTransform button, Image glow, Image[] edge, Image[] face,
+                            Text label, Text key, Text stamp, Text note)
+    {
+        copyButton = button; copyGlow = glow; copyEdge = edge; copyFace = face;
+        copyLabel = label; copyKey = key; copyStamp = stamp; copyNote = note;
+    }
+#endif
 }
